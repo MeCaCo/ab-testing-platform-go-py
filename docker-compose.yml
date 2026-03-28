@@ -1,6 +1,6 @@
 
 services:
-  # 🐘 PostgreSQL - основное хранилище данных
+  # 🐘 PostgreSQL
   postgres:
     image: postgres:15
     container_name: ab_testing_db
@@ -18,7 +18,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # 🔴 Redis - кэш для Go-сервиса
+  # 🔴 Redis
   redis:
     image: redis:7-alpine
     container_name: ab_testing_redis
@@ -31,6 +31,25 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+
+  # 🐍 Python API
+  python-api:
+    build: ./python
+    container_name: ab_testing_python
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://ab_test:ab_test_password@postgres:5432/ab_testing
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=supersecretkey123
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./python:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 volumes:
   postgres_data:
