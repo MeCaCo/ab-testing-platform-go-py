@@ -1,0 +1,37 @@
+
+services:
+  # 🐘 PostgreSQL - основное хранилище данных
+  postgres:
+    image: postgres:15
+    container_name: ab_testing_db
+    environment:
+      POSTGRES_USER: ab_test
+      POSTGRES_PASSWORD: ab_test_password
+      POSTGRES_DB: ab_testing
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ab_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 🔴 Redis - кэш для Go-сервиса
+  redis:
+    image: redis:7-alpine
+    container_name: ab_testing_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  postgres_data:
+  redis_data:
