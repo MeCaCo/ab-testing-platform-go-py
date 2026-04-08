@@ -1,6 +1,5 @@
-
 services:
-  # 🐘 PostgreSQL
+  # 🐘 PostgreSQL - основное хранилище данных
   postgres:
     image: postgres:15
     container_name: ab_testing_db
@@ -18,7 +17,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # 🔴 Redis
+  # 🔴 Redis - кэш для Go-сервиса
   redis:
     image: redis:7-alpine
     container_name: ab_testing_redis
@@ -50,6 +49,31 @@ services:
     volumes:
       - ./python:/app
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # 🐹 Go Edge Service
+  go-edge:
+    build: ./go
+    container_name: ab_testing_go_edge
+    ports:
+      - "8080:8080"
+    environment:
+      - SERVER_PORT=8080
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=ab_test
+      - DB_PASSWORD=ab_test_password
+      - DB_NAME=ab_testing
+      - REDIS_ADDR=redis:6379
+      - REDIS_DB=0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./go:/app
+    # ИСПРАВЛЕНО: команда теперь запускает скомпилированный бинарник ./main
+    command: ./main
 
 volumes:
   postgres_data:

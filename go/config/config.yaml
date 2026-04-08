@@ -1,0 +1,15 @@
+# go/config/config.yaml
+server:
+  port: "8080"
+
+database:
+  host: postgres
+  port: 5432
+  user: ab_test
+  password: ab_test_password
+  name: ab_testing
+
+redis:
+  addr: redis:6379
+  password: ""
+  db: 0
