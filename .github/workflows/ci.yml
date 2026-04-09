@@ -1,3 +1,4 @@
+# .github/workflows/ci.yml
 name: CI (Build and Test)
 
 on:
@@ -81,16 +82,17 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    # 2. Установка Docker
-    - name: Set up Docker
-      uses: docker/setup-docker-action@v3
+    # 2. Установка Docker Buildx (для эффективных сборок)
+    # Docker уже установлен в новом образе Ubuntu
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
 
-    # 3. Сборка Docker-образа для Python API
+    # 3. Сборка Docker-образа для Python API (без сохранения)
     - name: Build Python API Docker image
       run: |
         docker build -t ab-test-python-api-test ./python
 
-    # 4. Сборка Docker-образа для Go Edge
+    # 4. Сборка Docker-образа для Go Edge (без сохранения)
     - name: Build Go Edge Docker image
       run: |
         docker build -t ab-test-go-edge-test ./go
