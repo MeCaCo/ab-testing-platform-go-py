@@ -1,4 +1,3 @@
-// go/internal/service/assigner.go
 package service
 
 import (
@@ -13,20 +12,21 @@ import (
 type AssignerService struct {
 	redisRepo *repository.RedisRepository
 	dbRepo    *repository.PostgresRepository
+	batcher   *BatcherService
 	logger    *logger.SimpleLogger
 }
 
-// ПРАВИЛЬНАЯ версия: 3 параметра с типами
-func NewAssignerService(redisRepo *repository.RedisRepository, dbRepo *repository.PostgresRepository, log *logger.SimpleLogger) *AssignerService {
+// ВНИМАНИЕ: Добавляем batcher в параметры!
+func NewAssignerService(redisRepo *repository.RedisRepository, dbRepo *repository.PostgresRepository, batcher *BatcherService, log *logger.SimpleLogger) *AssignerService {
 	return &AssignerService{
 		redisRepo: redisRepo,
 		dbRepo:    dbRepo,
+		batcher:   batcher,
 		logger:    log,
 	}
 }
 
 // AssignVariant определяет, в какую группу (A или B) попадёт пользователь
-// ВНИМАНИЕ: вызываем AssignVariant из пакета service!
 func (s *AssignerService) AssignVariant(ctx context.Context, testID, userID string) (string, error) {
 	cacheKey := fmt.Sprintf("assignment:%s:%s", testID, userID)
 
@@ -41,8 +41,8 @@ func (s *AssignerService) AssignVariant(ctx context.Context, testID, userID stri
 		return cachedVariant, nil
 	}
 
-	// 2. Если не в кэше, используем хэширование ИЗ ТОГО ЖЕ ПАКЕТА service
-	variant := AssignVariant(testID, userID) // <- ВАЖНО: вызываем функцию из пакета service
+	// 2. Если не в кэше, используем хэширование
+	variant := AssignVariant(testID, userID)
 
 	// 3. Сохраняем в кэш на 24 часа
 	err = s.redisRepo.SetAssignment(ctx, cacheKey, variant, 24*time.Hour)
@@ -55,8 +55,11 @@ func (s *AssignerService) AssignVariant(ctx context.Context, testID, userID stri
 	return variant, nil
 }
 
-// RecordEvent сохраняет событие (показ, клик, конверсия) в БД
+// RecordEvent сохраняет событие (показ, клик, конверсия) в БД через батчер
 func (s *AssignerService) RecordEvent(ctx context.Context, event *model.Event) error {
-	// Пока просто передаём в DB repo (позже реализуем батчер)
-	return s.dbRepo.SaveEvent(ctx, event)
+	// Устанавливаем время создания события (когда Go-сервер его получил)
+	event.CreatedAt = time.Now()
+
+	// Отправляем событие в батчер
+	return s.batcher.AddEvent(ctx, event) // <-- Вместо dbRepo.SaveEvent
 }

@@ -10,5 +10,5 @@ type Event struct {
 	Variant   string    `json:"variant"`    // 'A' or 'B'
 	Type      string    `json:"event_type"` // 'impression', 'click', 'conversion'
 	Value     float64   `json:"value"`      // weight of the event (default 1.0)
-	CreatedAt time.Time `json:"created_at"`
+	CreatedAt time.Time `json:"created_at"` // Time when event was received by the server
 }

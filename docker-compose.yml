@@ -72,7 +72,6 @@ services:
         condition: service_healthy
     volumes:
       - ./go:/app
-    # ИСПРАВЛЕНО: команда теперь запускает скомпилированный бинарник ./main
     command: ./main
 
 volumes:

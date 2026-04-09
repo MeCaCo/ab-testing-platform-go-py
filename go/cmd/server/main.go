@@ -1,3 +1,4 @@
+// main.go
 package main
 
 import (
@@ -34,24 +35,27 @@ func main() {
 	redisRepo := repository.NewRedisRepository(cfg.Redis.Addr, cfg.Redis.Password, cfg.Redis.DB)
 	dbRepo := repository.NewPostgresRepository(cfg.DB.Host, cfg.DB.Port, cfg.DB.User, cfg.DB.Password, cfg.DB.Name)
 
-	// 4. Инициализируем сервисы
-	assignerService := service.NewAssignerService(redisRepo, dbRepo, log)
+	// 4. Инициализируем BatcherService
+	batcherService := service.NewBatcherService(dbRepo)
 
-	// 5. Создаём Gin роутер
+	// 5. Инициализируем AssignerService (передаём batcher!)
+	assignerService := service.NewAssignerService(redisRepo, dbRepo, batcherService, log)
+
+	// 6. Создаём Gin роутер
 	r := gin.Default()
 
-	// 6. Настраиваем CORS (чтобы клиентский JS мог обращаться к API)
+	// 7. Настраиваем CORS (чтобы клиентский JS мог обращаться к API)
 	configCORS := cors.DefaultConfig()
 	configCORS.AllowAllOrigins = true
 	configCORS.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
 	configCORS.AllowHeaders = []string{"Origin", "Content-Length", "Content-Type", "Authorization"}
 	r.Use(cors.New(configCORS))
 
-	// 7. Регистрируем хендлеры
+	// 8. Регистрируем хендлеры
 	assignHandler := handler.NewAssignHandler(assignerService)
 	assignHandler.RegisterRoutes(r)
 
-	// 8. Запускаем сервер в отдельной горутине
+	// 9. Запускаем сервер в отдельной горутине
 	srv := &http.Server{
 		Addr:    ":" + cfg.Server.Port,
 		Handler: r,
@@ -60,17 +64,21 @@ func main() {
 	go func() {
 		log.Info("Starting server on port " + cfg.Server.Port)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Error(fmt.Sprintf("Server failed to start: %v", err)) // <-- ИСПРАВЛЕНО: fmt.Sprintf
+			log.Error(fmt.Sprintf("Server failed to start: %v", err))
 		}
 	}()
 
-	// 9. Ожидаем сигнал остановки
+	// 10. Ожидаем сигнал остановки
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 	log.Info("Shutting down server...")
 
-	// 10. Плавно завершаем работу
+	// 11. Плавно останавливаем batcher перед остановкой сервера
+	log.Info("Shutting down batcher...")
+	batcherService.Stop()
+
+	// 12. Плавно завершаем работу сервера
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
