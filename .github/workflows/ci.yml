@@ -1,0 +1,101 @@
+name: CI (Build and Test)
+
+on:
+  push:
+    branches:
+      - main  # Запускать при пуше в ветку main
+  pull_request:
+    branches:
+      - main  # Запускать при создании/обновлении PR в main
+
+jobs:
+  test-go:
+    runs-on: ubuntu-latest  # Используем Ubuntu runner
+
+    steps:
+    # 1. Checkout репозитория
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    # 2. Установка Go
+    - name: Setup Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.26'  # Указываем версию Go
+
+    # 3. Установка goproxy.io (для РФ)
+    - name: Setup Go Proxy
+      run: |
+        go env -w GOPROXY=https://goproxy.io,direct
+        go env -w GOSUMDB=off # Временно отключаем проверку чек-сумм, если нужно
+
+    # 4. Установка зависимостей Go
+    - name: Install Go dependencies
+      run: |
+        cd go
+        go mod tidy
+
+    # 5. Проверка, что нет изменений в go.mod/go.sum (т.е. всё актуально)
+    - name: Verify Go modules
+      run: |
+        cd go
+        git diff --exit-code -- go.mod go.sum || (echo "go.mod or go.sum changed after go mod tidy, please run 'go mod tidy' locally and commit." && exit 1)
+
+    # 6. Сборка Go-приложения
+    - name: Build Go application
+      run: |
+        cd go
+        go build -o main cmd/server/main.go
+
+  test-python:
+    runs-on: ubuntu-latest  # Используем Ubuntu runner
+
+    steps:
+    # 1. Checkout репозитория
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    # 2. Установка Python
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'  # Указываем версию Python
+
+    # 3. Установка зависимостей Python
+    - name: Install Python dependencies
+      run: |
+        cd python
+        pip install -r requirements.txt
+
+    # 4. (Опционально) Запуск тестов Python (если есть)
+    # - name: Run Python tests
+    #   run: |
+    #     cd python
+    #     pytest tests/  # или другой фреймворк
+
+  build-docker-images:
+    runs-on: ubuntu-latest  # Используем Ubuntu runner
+
+    steps:
+    # 1. Checkout репозитория
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    # 2. Установка Docker
+    - name: Set up Docker
+      uses: docker/setup-docker-action@v3
+
+    # 3. Сборка Docker-образа для Python API
+    - name: Build Python API Docker image
+      run: |
+        docker build -t ab-test-python-api-test ./python
+
+    # 4. Сборка Docker-образа для Go Edge
+    - name: Build Go Edge Docker image
+      run: |
+        docker build -t ab-test-go-edge-test ./go
+
+    # 5. Проверка, что образы собраны
+    - name: List Docker images
+      run: |
+        docker images | grep -E "(ab-test-python-api-test|ab-test-go-edge-test)"
